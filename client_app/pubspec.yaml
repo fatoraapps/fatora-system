@@ -14,14 +14,12 @@ dependencies:
   # Flutter Icons
   cupertino_icons: ^1.0.8
 
-  # App dependencies (from old project)
+  # App dependencies
   supabase_flutter: ^2.10.3
   crypto: ^3.0.3
   geolocator: ^14.0.2
   image_picker: ^1.0.7
-
-  # For deep linking (choose one)
-  uni_links2: ^0.6.0   # يفضل هذا لأنه الأحدث والأقل مشاكل
+  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -30,7 +28,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # uncomment this if you have assets folder
-  # assets:
-  #   - assets/

@@ -1,3 +1,4 @@
+
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +7,6 @@ import 'config.dart';
 import 'screens/client_app_splash_screen.dart';
 import 'screens/client_app_login_screen.dart';
 import 'screens/client_app_register_screen.dart';
-import 'screens/client_app_home_screen.dart';
 // مفيش داعي لاستيراد client_app_supplier_screen هنا
 // لأنه بيستخدم من داخل client_app_home_screen.dart مش من main.dart
 
