@@ -348,6 +348,7 @@ class _ClientAppSearchScreenState extends State<ClientAppSearchScreen> {
         ),
       ),
     );
+
   }
 
   // ======================= الـ UI الرئيسي =======================

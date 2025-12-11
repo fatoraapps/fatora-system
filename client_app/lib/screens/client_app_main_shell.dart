@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 
-// ✅ استيراد الشاشات الخمسة
+// الشاشات
 import 'client_app_home_screen.dart';
 import 'client_app_cart_screen.dart';
 import 'client_app_orders_screen.dart';
@@ -21,9 +21,17 @@ import 'client_app_account_screen.dart';
 class ClientAppMainShell extends StatefulWidget {
   final String clientId;
 
+  /// openCart = فتح شاشة السلة تلقائيًا
+  final bool openCart;
+
+  /// targetSupplierId = افتح طلب مورد معيّن داخل السلة
+  final int? targetSupplierId;
+
   const ClientAppMainShell({
     super.key,
     required this.clientId,
+    this.openCart = false,
+    this.targetSupplierId,
   });
 
   @override
@@ -32,20 +40,55 @@ class ClientAppMainShell extends StatefulWidget {
 
 class _ClientAppMainShellState extends State<ClientAppMainShell> {
   int _selectedIndex = 0;
-  late final List<Widget> _tabs;
+
+  late List<Widget> _tabs;
+
+  bool _cartAutoOpened = false;
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ تأكد إن كل شاشة عندك فيها constructor يستقبل clientId: String
     _tabs = [
-      ClientAppHomeScreen(clientId: widget.clientId),    // الرئيسية
-      ClientAppCartScreen(clientId: widget.clientId),    // السلة
-      ClientAppOrdersScreen(clientId: widget.clientId),  // الطلبات
-      ClientAppReportsScreen(clientId: widget.clientId), // التقارير
-      ClientAppAccountScreen(clientId: widget.clientId), // حسابي
+      ClientAppHomeScreen(clientId: widget.clientId),
+      ClientAppCartScreen(
+        clientId: widget.clientId,
+        targetSupplierId: widget.targetSupplierId, // ⭐ مهم جدًا
+      ),
+      ClientAppOrdersScreen(clientId: widget.clientId),
+      ClientAppReportsScreen(clientId: widget.clientId),
+      ClientAppAccountScreen(clientId: widget.clientId),
     ];
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // اقرأ arguments من Route
+    final args = ModalRoute.of(context)?.settings.arguments;
+
+    if (!_cartAutoOpened && args is Map) {
+      if (args['openCart'] == true) {
+        setState(() {
+          _selectedIndex = 1; // السلة
+        });
+        _cartAutoOpened = true;
+      }
+
+      if (args['supplierId'] != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _tabs[1] = ClientAppCartScreen(
+            clientId: widget.clientId,
+            targetSupplierId: args['supplierId'],
+          );
+
+          setState(() {
+            _selectedIndex = 1;
+          });
+        });
+      }
+    }
   }
 
   void _onTabTapped(int index) {

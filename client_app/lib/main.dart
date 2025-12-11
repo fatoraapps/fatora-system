@@ -44,11 +44,29 @@ class MyApp extends StatelessWidget {
         // ✅ المسار الجديد اللي يحتوي على الـ Bottom Bar
         '/client/main': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
-          final clientId =
-          (args is String && args.isNotEmpty) ? args : 'UNKNOWN_CLIENT';
 
-          return ClientAppMainShell(clientId: clientId);
+          String clientId = '';
+          int? targetSupplierId = 0;
+          bool openCart = false;
+
+          if (args is Map) {
+            clientId = args['clientId'] ?? '';
+            targetSupplierId = args['targetSupplierId'];
+            openCart = args['openCart'] ?? false;
+          }
+
+
+          if (clientId.isEmpty) {
+            throw Exception("clientId is missing when navigating to /client/main");
+          }
+
+          return ClientAppMainShell(
+            clientId: clientId,
+            openCart: openCart,
+            targetSupplierId: targetSupplierId,
+          );
         },
+
       },
     );
   }

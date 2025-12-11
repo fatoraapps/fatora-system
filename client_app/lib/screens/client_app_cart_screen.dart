@@ -10,7 +10,7 @@
 // ===========================================================
 
 import 'package:flutter/material.dart';
-
+import '../utils/order_dialog.dart';
 import '../services/cart_manager.dart';
 import '../services/product_repository.dart';
 import '../models/client_app_main_product_model.dart';
@@ -27,30 +27,39 @@ const double _cardRadius = 16.0;
 
 class ClientAppCartScreen extends StatefulWidget {
   final String clientId;
+  final int? targetSupplierId;   // ← إضافة جديدة
 
   const ClientAppCartScreen({
     super.key,
     required this.clientId,
+    this.targetSupplierId,
   });
 
   @override
   State<ClientAppCartScreen> createState() => _ClientAppCartScreenState();
 }
 
+
 class _ClientAppCartScreenState extends State<ClientAppCartScreen> {
   final CartManager _cartManager = CartManager();
   final ProductRepository _repo = ProductRepository();
+  final ScrollController _scrollController = ScrollController();
+
+  int? _targetSupplierId;
+  bool _scrollHandled = false; // مهم عشان ما نعملش scroll كل مرة
 
   bool _isLoading = true;
   String? _errorMessage;
 
   List<ClientAppMainProduct> _allProducts = [];
-
+  bool _didAutoOpenSupplier = false;
   @override
   void initState() {
     super.initState();
+    _targetSupplierId = widget.targetSupplierId;
     _loadProducts();
     _cartManager.addListener(_onCartChanged);
+
   }
 
   @override
@@ -87,27 +96,7 @@ class _ClientAppCartScreenState extends State<ClientAppCartScreen> {
     }
   }
 
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          msg,
-          style: const TextStyle(
-            fontFamily: 'Cairo',
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        backgroundColor: isError ? _dangerColor : _successColor,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
+
 
   ClientAppMainProduct? _findProduct(
       int supplierId,
@@ -156,7 +145,6 @@ class _ClientAppCartScreenState extends State<ClientAppCartScreen> {
 
   Widget _buildCartBody() {
     final items = _cartManager.items;
-
     if (items.isEmpty) {
       return const Center(
         child: Column(
@@ -291,26 +279,77 @@ class _ClientAppCartScreenState extends State<ClientAppCartScreen> {
         ),
       );
     });
-
     final validOrders =
     supplierOrders.where((o) => o.meetsMinItems && o.meetsMinValue).toList();
-    final bool allValid =
-        validOrders.isNotEmpty && validOrders.length == supplierOrders.length;
+
     final bool canSendAny = validOrders.isNotEmpty;
+
+    // 👇👇👇  الجزء الجديد المهم 👇👇👇
+    if (widget.targetSupplierId != null && !_didAutoOpenSupplier) {
+      final int targetId = widget.targetSupplierId!;
+      SupplierOrderSummary? targetOrder;
+
+      for (final o in supplierOrders) {
+        if (o.supplierId == targetId) {
+          targetOrder = o;
+          break;
+        }
+      }
+
+      // عشان ما نحاولش نفتحها كل ما الـ build يتنادى
+      _didAutoOpenSupplier = true;
+
+      if (targetOrder != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => SupplierOrderDetailsScreen(
+                order: targetOrder!,
+                clientId: widget.clientId,
+              ),
+            ),
+          );
+        });
+      }
+    }
+    // 👆👆👆  لحد هنا الإضافة الجديدة 👆👆👆
+
+
 
     return Column(
       children: [
         // قائمة الموردين (شريط لكل مورد)
         Expanded(
           child: ListView.builder(
+            controller: _scrollController,   // ← إضافة مهمة للتحكم في الحركة
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             itemCount: supplierOrders.length,
             itemBuilder: (context, index) {
-              return _buildSupplierOrderCard(supplierOrders[index]);
+              final supplier = supplierOrders[index];
+
+              // إذا كان هذا هو المورد المطلوب → نعمل Scroll عليه مرة واحدة فقط
+              if (!_scrollHandled &&
+                  _targetSupplierId != null &&
+                  supplier.supplierId == _targetSupplierId) {
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) {
+                    _scrollController.animateTo(
+                      index * 220, // ارتفاع تقريبي لكارت المورد
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                });
+                _scrollHandled = true;
+              }
+
+              return _buildSupplierOrderCard(supplier);
             },
           ),
         ),
+
 
         // زر إرسال كل الطلبات
         Container(
@@ -333,15 +372,12 @@ class _ClientAppCartScreenState extends State<ClientAppCartScreen> {
               onPressed: !canSendAny
                   ? null
                   : () {
-                if (allValid) {
-                  _showSnack(
-                    'سيتم إرسال طلبات جميع الموردين (${validOrders.length})',
-                  );
-                } else {
-                  final names =
-                  validOrders.map((o) => o.supplierName).join('، ');
-                  _showSnack(
-                    'سيتم إرسال طلبات الموردين التالية فقط: $names\nباقي الطلبات لم تصل للحد الأدنى.',
+                for (final order in validOrders) {
+                  showSubmitOrderDialog(
+                    context: context,
+                    totalAmount: order.totalAmount,
+                    supplierId: order.supplierId,
+                    supplierName: order.supplierName,
                   );
                 }
               },
@@ -1032,14 +1068,11 @@ class _SupplierOrderDetailsScreenState
                   onPressed: !meetsAll
                       ? null
                       : () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'سيتم إرسال الطلب إلى ${currentOrder.supplierName} بقيمة ${currentOrder.totalAmount.toStringAsFixed(2)} ج.م',
-                          textAlign: TextAlign.center,
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
+                    showSubmitOrderDialog(
+                      context: context,
+                      totalAmount: currentOrder.totalAmount,
+                      supplierId: currentOrder.supplierId,
+                      supplierName: currentOrder.supplierName,
                     );
                   },
                   style: ElevatedButton.styleFrom(

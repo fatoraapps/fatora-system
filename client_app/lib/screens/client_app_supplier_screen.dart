@@ -27,6 +27,12 @@ class ClientAppSupplierScreen extends StatefulWidget {
 class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
   final ProductRepository _repo = ProductRepository();
   final CartManager _cartManager = CartManager();
+  final ScrollController _scrollController = ScrollController();
+
+  final List<GlobalKey> _productKeys = [];
+
+  int? _highlightIndex;
+  bool _playHighlight = false;
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -97,6 +103,41 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
       setState(() {
         _allProducts = products;
         _displayedProducts = products;
+
+        // تهيئة الـ GlobalKeys بحيث يبقى عندنا key لكل منتج في الجريد
+        _productKeys
+          ..clear()
+          ..addAll(List.generate(_displayedProducts.length, (_) => GlobalKey()));
+
+        // ===== Auto Scroll + Highlight Product If initialProductCode Provided =====
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_highlightIndex == null) return;
+          if (_highlightIndex! >= _productKeys.length) return;
+
+          final ctx = _productKeys[_highlightIndex!].currentContext;
+          if (ctx == null) return;
+
+          // هذا لا يعتبر async gap - آمن 100%
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 700),
+            alignment: 0.2,
+            curve: Curves.easeOutCubic,
+          );
+
+          if (!mounted) return;
+
+          setState(() => _playHighlight = true);
+
+          Future.delayed(const Duration(milliseconds: 1300), () {
+            if (mounted) {
+              setState(() => _playHighlight = false);
+            }
+          });
+        });
+
+
+
         _mainCategories = mainCats.toList();
         _subCategories = subCats.toList();
         _brands = brands.toList();
@@ -403,6 +444,8 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
 
   Widget _buildProductsGrid() {
     return GridView.builder(
+      controller: _scrollController,
+
       padding: const EdgeInsets.all(10),
       itemCount: _displayedProducts.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -412,6 +455,10 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
         mainAxisSpacing: 10,
       ),
       itemBuilder: (context, index) {
+        final itemKey = (index < _productKeys.length)
+            ? _productKeys[index]
+            : GlobalKey();
+
         final product = _displayedProducts[index];
 
         final String unitName = product.unitNameAr;
@@ -470,14 +517,28 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
             hasOfferLimit && offerUnitPrice != null && offerQty > 0;
         final bool canShowBaseSplit = baseUnitPrice > 0 && baseQty > 0;
 
-        return Container(
+        final isHighlighted = _playHighlight && index == _highlightIndex;
+
+        return AnimatedContainer(
+          key: itemKey,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isHighlighted ? const Color(0xFFFFF8C6) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.grey.withValues(alpha: 0.2),
+              color: isHighlighted ? Colors.amber : Colors.grey.withValues(alpha: 0.2),
+              width: isHighlighted ? 3 : 1,
             ),
-            boxShadow: [
+            boxShadow: isHighlighted
+                ? [
+              BoxShadow(
+                color: Colors.amber.withValues(alpha:0.5),
+                blurRadius: 20,
+                spreadRadius: 3,
+              )
+            ]
+                : [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 4,
@@ -486,7 +547,8 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
             ],
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+
+          crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // صورة المنتج من Supabase باستخدام imageUrl من الموديل
               Expanded(
@@ -984,31 +1046,37 @@ class _ClientAppSupplierScreenState extends State<ClientAppSupplierScreen> {
               ElevatedButton(
                 onPressed: isOrderReady
                     ? () {
-                  _showLimitWarning(
-                    'الطلب جاهز للإرسال! (الإجمالي: ${totalValue.toStringAsFixed(2)} ج.م)',
-                    isError: false,
+                  Navigator.pushNamed(
+                    context,
+                    '/client/main',
+                    arguments: {
+                      'clientId': widget.clientId,
+                      'openCart': true,
+                      'targetSupplierId': widget.supplierId,
+                    },
                   );
+
                 }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                   isOrderReady ? const Color(0xFF4CAF50) : Colors.grey,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 5,
                 ),
                 child: const Text(
-                  'إرسال الطلب',
+                  'الذهاب إلى السلة',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
+
             ],
           ),
         ],

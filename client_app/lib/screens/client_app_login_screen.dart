@@ -145,8 +145,12 @@ class _ClientAppLoginScreenState extends State<ClientAppLoginScreen> {
       // 3) الذهاب إلى الـ Shell (الـ BottomNavigationBar)
       Navigator.pushReplacementNamed(
         context,
-        '/client/main',   // ← هنا التغيير المهم
-        arguments: clientId,
+        '/client/main',
+        arguments: {
+          'clientId': clientId,
+          'openCart': false,
+          'targetSupplierId': null,
+        },
       );
     } on PostgrestException catch (e) {
       debugPrint('Supabase DB Error (login): ${e.message}');
